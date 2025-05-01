@@ -111,7 +111,9 @@ End Type
 ' à¯êîèÓïÒèâä˙âª
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgAddInf() As T_STRING_ARG_ADD_INF
-    With G_String_InitArgAddInf
+    Dim wkInf As T_STRING_ARG_ADD_INF
+    
+    With wkInf
         .Target = ""
         
         .Dlmt = ""
@@ -123,6 +125,8 @@ Public Property Get G_String_InitArgAddInf() As T_STRING_ARG_ADD_INF
         
         .Excluded = ""
     End With
+    
+    G_String_InitArgAddInf = wkInf
 End Property
 
 '------------------------------------------------------------------------------
@@ -237,7 +241,9 @@ End Function
 ' à¯êîèÓïÒèâä˙âª
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgSrchInf() As T_STRING_ARG_SEARCH_INF
-    With G_String_InitArgSrchInf
+    Dim wkInf As T_STRING_ARG_SEARCH_INF
+    
+    With wkInf
         .Target = ""
         
         .Search = ""
@@ -254,6 +260,8 @@ Public Property Get G_String_InitArgSrchInf() As T_STRING_ARG_SEARCH_INF
         
         .GetIdx = D_IDX_ALL
     End With
+    
+    G_String_InitArgSrchInf = wkInf
 End Property
 
 '------------------------------------------------------------------------------
@@ -552,7 +560,9 @@ End Function
 ' à¯êîèÓïÒèâä˙âª
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgGetInf() As T_STRING_ARG_GET_INF
-    With G_String_InitArgGetInf
+    Dim wkInf As T_STRING_ARG_GET_INF
+    
+    With wkInf
         .SrchInf = G_String_InitArgSrchInf
         
         .SttStr = ""
@@ -561,6 +571,8 @@ Public Property Get G_String_InitArgGetInf() As T_STRING_ARG_GET_INF
         .AddBefFlg = False
         .AddSrchFlg = False
     End With
+    
+    G_String_InitArgGetInf = wkInf
 End Property
 
 '------------------------------------------------------------------------------
@@ -581,7 +593,7 @@ Public Function F_String_GetMidStr_Inf( _
     
     Dim wkGetSttInf As Variant
     Dim wkGetEndInf As Variant
-    Dim wkGetSttPos As Long, wkGetEndPos As String
+    Dim wkGetSttPos As Long, wkGetEndPos As Long
     
     With aArgInf
         wkArgSrchInf = aArgInf.SrchInf
@@ -679,7 +691,10 @@ Public Function F_String_GetMidStr( _
     Dim wkArgInf As T_STRING_ARG_GET_INF: wkArgInf = G_String_InitArgGetInf()
     
     With wkArgInf
-        .SrchInf.Target = aTarget
+        With .SrchInf
+            .Target = aTarget
+            .GetIdx = D_IDX_START
+        End With
         
         .SttStr = aSttStr
         .EndStr = aEndStr
@@ -738,12 +753,16 @@ End Function
 ' à¯êîèÓïÒèâä˙âª
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgDelInf() As T_STRING_ARG_DEL_INF
+    Dim wkInf As T_STRING_ARG_DEL_INF
+    
     With G_String_InitArgDelInf
         .SrchInf = G_String_InitArgSrchInf
         
         .DelPosSpec = E_STRING_SPEC_POS_START
         .AddDelFlg = False
     End With
+    
+    G_String_InitArgDelInf = wkInf
 End Property
 
 '------------------------------------------------------------------------------
