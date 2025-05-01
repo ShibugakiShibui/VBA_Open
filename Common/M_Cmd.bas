@@ -243,7 +243,7 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
             '単語検索ありの場合は単語チェック追加
             If aArgInf.ChkWordFlg = True Then
                 .ChkPtn = D_STRING_MATCH_CHECKWORD
-                .ChkSpec = .ChkSpec Or E_STRING_SPEC_MATCH_WORD
+                .ChkSpec = aArgInf.ChkWordSpec Or E_STRING_SPEC_MATCH_WORD
             End If
         End With
         

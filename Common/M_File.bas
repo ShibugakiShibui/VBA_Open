@@ -4,6 +4,7 @@ Option Explicit
 ' ファイル処理
 '##############################################################################
 ' 参照設定          |   Microsoft Scripting Runtime
+'                   |   Microsoft Office xx.x Object Library
 '------------------------------------------------------------------------------
 ' 参照モジュール    |   M_String
 '------------------------------------------------------------------------------
@@ -40,6 +41,17 @@ Private Type PT_FILE_LIST_INF
     ExtSpec As String
     ExtSpecAry As Variant
 End Type
+
+'------------------------------------------------------------------------------
+' 定数定義
+'------------------------------------------------------------------------------
+Private Enum PE_FILE_IDX_FILTER_INF
+    PE_FILE_IDX_FILTER_INF_NONE = D_IDX_START - 1
+    PE_FILE_IDX_FILTER_INF_NAME
+    PE_FILE_IDX_FILTER_INF_FILTER
+    PE_FILE_IDX_FILTER_INF_MAX
+    PE_FILE_IDX_FILTER_INF_EEND = PE_FILE_IDX_FILTER_INF_MAX - 1
+End Enum
 
 '------------------------------------------------------------------------------
 ' 変数定義
@@ -302,3 +314,123 @@ Public Sub S_File_CloseTextFile( _
         Set aTs = Nothing
     End If
 End Sub
+
+'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+' カレントフォルダ移動
+'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Public Function F_File_MoveCurrentFolder( _
+        ByVal aFolder As String) As Boolean
+    Dim wkRet As Boolean
+    
+    Dim wkTmpAry As Variant
+    
+    '引数チェック
+    If Dir(aFolder, vbDirectory) = "" Then
+        Exit Function
+    ElseIf M_String.F_String_GetSplit(wkTmpAry, aFolder, ":\", aIncChkFlg:=True) <> True Then
+        Exit Function
+    End If
+    
+    ChDrive wkTmpAry(LBound(wkTmpAry))
+    ChDir aFolder
+    
+    F_File_MoveCurrentFolder = True
+End Function
+
+'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+' ダイアログ選択結果取得
+'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+' フィルタ設定
+'------------------------------------------------------------------------------
+Public Function F_File_ReturnFilterInfAdd( _
+        ByRef aInfAryAry As Variant, _
+        ByVal aName As String, _
+        ByVal aFilter As String) As Variant
+    Dim wkInf(D_IDX_START To PE_FILE_IDX_FILTER_INF_EEND) As Variant
+    
+    If aFilter <> "" Then
+        wkInf(PE_FILE_IDX_FILTER_INF_NAME) = aName
+        wkInf(PE_FILE_IDX_FILTER_INF_FILTER) = aFilter
+        
+        F_File_ReturnFilterInfAdd = M_Common.F_ReturnArrayAdd(aInfAryAry, wkInf)
+    End If
+End Function
+
+'------------------------------------------------------------------------------
+' 複数選択
+'------------------------------------------------------------------------------
+Public Function F_File_GetDialogSelectArray( _
+        ByRef aRtnAry As Variant, _
+        Optional ByVal aFilDlgType As MsoFileDialogType = msoFileDialogFilePicker, _
+        Optional ByVal aCrntFld As String = "", _
+        Optional ByVal aFilterInfAry As Variant = Empty) As Boolean
+    F_File_GetDialogSelectArray = PF_File_GetDialogSelectArray_Sub(aRtnAry, aFilDlgType, aCrntFld, aFilterInfAry, True)
+End Function
+
+' サブルーチン
+Private Function PF_File_GetDialogSelectArray_Sub( _
+        ByRef aRtnAry As Variant, _
+        ByVal aFilDlgType As MsoFileDialogType, _
+        ByVal aCrntFld As String, _
+        ByVal aFilterInfAry As Variant, _
+        ByVal aMultiSlctFlg As Boolean) As Boolean
+    Dim wkRtnAry As Variant
+    Dim wkTmpAry As Variant, wkTmp As Variant
+    
+    'カレントフォルダ設定
+    F_File_MoveCurrentDirectory aCrntFld
+    
+    'ダイアログ表示
+    With Application.FileDialog(aFilDlgType)
+        'フィルタ設定
+        .Filters.Clear
+        If aFilDlgType = msoFileDialogFolderPicker Then
+            'フォルダは無視
+        Else
+            With .Filters
+                If IsArray(aFilterInfAry) = True Then
+                    For Each wkTmpAry In aFilterInfAry
+                        .Add wkTmpAry(PE_FILE_IDX_FILTER_INF_NAME), wkTmpAry(PE_FILE_IDX_FILTER_INF_FILTER)
+                    Next wkTmpAry
+                Else
+                    .Add "すべてのファイル", "*.*"
+                End If
+            End With
+            .FilterIndex = 1
+        End If
+        
+        '複数ファル選択許可
+        .AllowMultiSelect = aMultiSlctFlg
+        
+        'ダイアログ表示
+        If .Show <> 0 Then
+            'キャンセル以外はパスを返却
+            For Each wkTmp In .SelectedItems
+                wkRtnAry = M_Common.F_ReturnArrayAdd(wkRtnAry, wkTmp)
+            Next
+        End If
+    End With
+    
+    If IsArray(wkRtnAry) = True Then
+        aRtnAry = wkRtnAry
+        PF_File_GetDialogSelectArray_Sub = True
+    End If
+End Function
+
+'------------------------------------------------------------------------------
+' 単数選択
+'------------------------------------------------------------------------------
+Public Function F_File_GetDialogSelect( _
+        ByRef aRtn As String, _
+        Optional ByVal aFilDlgType As MsoFileDialogType = msoFileDialogFilePicker, _
+        Optional ByVal aCrntFld As String = "", _
+        Optional ByVal aFilterInfAry As Variant = Empty) As Boolean
+    Dim wkRtnAry As Variant
+    
+    If PF_File_GetDialogSelectArray_Sub(wkRtnAry, aFilDlgType, aCrntFld, aFilterInfAry, False) <> True Then
+        Exit Function
+    End If
+    
+    aRtn = wkRtnAry(LBound(wkRtnAry))
+    F_File_GetDialogSelect = True
+End Function
