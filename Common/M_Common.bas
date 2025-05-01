@@ -30,6 +30,7 @@ Public Const D_IDX_START As Long = 1
 Public Const D_IDX_NONE As Long = D_IDX_START - 1
 Public Const D_IDX_NOW As Long = D_IDX_NONE - 1
 Public Const D_IDX_END As Long = D_IDX_NOW - 1
+Public Const D_IDX_ALL As Long = D_IDX_END - 1
 
 Public Enum E_RET
     E_RET_NG = 0

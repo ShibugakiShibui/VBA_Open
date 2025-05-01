@@ -26,8 +26,6 @@ Public Enum E_CMD_IDX_GREP_INF
     E_CMD_IDX_GREP_INF_EEND = E_CMD_IDX_GREP_INF_MAX - 1
 End Enum
 
-Public Const D_CMD_CHECKWORD As String = D_STRING_CHECKWORD
-
 '------------------------------------------------------------------------------
 ' 構造体定義
 '------------------------------------------------------------------------------
@@ -35,10 +33,10 @@ Public Type T_CMD_ARG_GREP_INF
     '検索文字列
     SrchPtn As String
     
-    'チェックパターン
-    ChkPtn As String
-    ChkPtnSpec As E_STRING_SPEC
+    '単語チェック指定
     ChkWordFlg As Boolean
+    ChkWordPtn As String
+    ChkWordSpec As E_STRING_SPEC
     
     FullPath As String
     ExtSpec As String
@@ -173,9 +171,9 @@ Public Property Get G_Cmd_InitArgGrepInf() As T_CMD_ARG_GREP_INF
     With G_Cmd_InitArgGrepInf
         .SrchPtn = ""
         
-        .ChkPtn = ""
-        .ChkPtnSpec = E_STRING_SPEC_POS_MATCH
-        .ChkWordFlg = True
+        .ChkWordFlg = False
+        .ChkWordPtn = D_STRING_MATCH_CHECKWORD
+        .ChkWordSpec = E_STRING_SPEC_MATCH_ALL
         
         .FullPath = ""
         .ExtSpec = ""
@@ -202,7 +200,7 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
     Dim wkRltGrepRet As String
     Dim wkFullPath As String
     Dim wkSrc As String
-    Dim wkChkInf As T_STRING_ARG_CHK_INF: wkChkInf = M_String.G_String_InitArgChkInf
+    Dim wkSrchInf As T_STRING_ARG_SEARCH_INF: wkSrchInf = M_String.G_String_InitArgSrchInf
     
     Dim wkCmd As String
     Dim wkExtSpecAry As Variant, wkExtSpec As Variant
@@ -220,8 +218,8 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
         
         'Grepパス作成（一旦全ファイル対象で検索）
         With wkAddInf
-            .Str = aArgInf.FullPath
-            .Add = "*.*"
+            .Target = aArgInf.FullPath
+            .Add = "*"
             .Dlmt = "\"
             .DlmtChkFlg = True
         End With
@@ -236,15 +234,17 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
         
         '拡張子指定を分割
         If M_String.F_String_GetSplitExtension(wkExtSpecAry, .ExtSpec) <> True Then
-            wkExtSpecAry = M_Common.F_ReturnArrayAdd(wkExtSpecAry, "*.*")
+            wkExtSpecAry = M_Common.F_ReturnArrayAdd(wkExtSpecAry, "*")
         End If
         
         '初期化
-        With wkChkInf
+        With wkSrchInf
             .SrchPtn = aArgInf.SrchPtn
-            .ChkPtn = aArgInf.ChkPtn
-            .ChkPtnSpec = aArgInf.ChkPtnSpec
-            .ChkWordFlg = aArgInf.ChkWordFlg
+            '単語検索ありの場合は単語チェック追加
+            If aArgInf.ChkWordFlg = True Then
+                .ChkPtn = D_STRING_MATCH_CHECKWORD
+                .ChkSpec = .ChkSpec Or E_STRING_SPEC_MATCH_WORD
+            End If
         End With
         
         'Grep結果分ループ
@@ -265,8 +265,8 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
                 
                 '単語チェックあり時は単語チェック実施
                 If .ChkWordFlg = True Then
-                    wkChkInf.Str = wkSrc
-                    wkTmpFlg = M_String.F_String_Check_Inf(wkChkInf)
+                    wkSrchInf.Target = wkSrc
+                    wkTmpFlg = M_String.F_String_Check_Inf(wkSrchInf)
                 Else
                     wkTmpFlg = True
                 End If
@@ -290,7 +290,7 @@ Public Function F_Cmd_GetTextGrepResult_Inf( _
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_RESULT) = wkGrepRet
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_RLTPATH) = wkTmpAry(PE_CMD_POS_GREPRET_RLTPATH)
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_FULLPATH) = wkFullPath
-                        wkGrepRetInf(E_CMD_IDX_GREP_INF_FILE) = M_String.F_String_ReturnDeleteStr(wkGrepRetInf(E_CMD_IDX_GREP_INF_RLTPATH), "\", aDelSpec:=E_STRING_SPEC_POS_START, aDelPosCnt:=D_POS_END)
+                        wkGrepRetInf(E_CMD_IDX_GREP_INF_FILE) = M_String.F_String_ReturnDeleteStr(wkGrepRetInf(E_CMD_IDX_GREP_INF_RLTPATH), "\", aDelPosSpec:=E_STRING_SPEC_POS_START)
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_LINE) = Val(wkTmpAry(PE_CMD_POS_GREPRET_LINE))
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_OFFSET) = Val(wkTmpAry(PE_CMD_POS_GREPRET_OFFSET))
                         wkGrepRetInf(E_CMD_IDX_GREP_INF_SOURCE) = wkSrc

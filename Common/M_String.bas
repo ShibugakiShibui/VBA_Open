@@ -18,11 +18,13 @@ Public Enum E_STRING_SPEC
     E_STRING_SPEC_POS_START = &H1
     E_STRING_SPEC_POS_END = &H2
     E_STRING_SPEC_POS_MID = &H4
-    E_STRING_SPEC_POS_MATCH = E_STRING_SPEC_POS_START Or E_STRING_SPEC_POS_END
-    E_STRING_SPEC_POS_FULL = E_STRING_SPEC_POS_START Or E_STRING_SPEC_POS_END Or E_STRING_SPEC_POS_MID
-    E_STRING_SPEC_WORD_NOTWORD = &H10
-    E_STRING_SPEC_WORD_WORD = &H20
-    E_STRING_SPEC_WORD_MASK = E_STRING_SPEC_WORD_NOTWORD Or E_STRING_SPEC_WORD_WORD
+    E_STRING_SPEC_POS_BOTH = E_STRING_SPEC_POS_START Or E_STRING_SPEC_POS_END
+    E_STRING_SPEC_MATCH_START = &H10
+    E_STRING_SPEC_MATCH_END = &H20
+    E_STRING_SPEC_MATCH_MID = &H40
+    E_STRING_SPEC_MATCH_WORD = &H80
+    E_STRING_SPEC_MATCH_ALL = E_STRING_SPEC_MATCH_START Or E_STRING_SPEC_MATCH_END
+    E_STRING_SPEC_MATCH_MASK = E_STRING_SPEC_MATCH_START Or E_STRING_SPEC_MATCH_END Or E_STRING_SPEC_MATCH_MID
 End Enum
 
 Public Enum E_STRING_IDX_SRCH_INF
@@ -33,14 +35,16 @@ Public Enum E_STRING_IDX_SRCH_INF
     E_STRING_IDX_SRCH_INF_EEND = E_STRING_IDX_SRCH_INF_MAX - 1
 End Enum
 
-Public Const D_STRING_CHECKWORD As String = "A-Za-z0-9_"
+Public Const D_STRING_MATCH_CHECKWORD As String = "[^A-Za-z0-9_]"
+
+Public Const D_STRING_DLMT_EXTENSION As String = ";"
 
 '------------------------------------------------------------------------------
 ' 構造体定義
 '------------------------------------------------------------------------------
 Public Type T_STRING_ARG_ADD_INF
     '文字列
-    Str As String
+    Target As String
     
     '区切り
     Dlmt As String
@@ -55,29 +59,31 @@ Public Type T_STRING_ARG_ADD_INF
     Excluded As String
 End Type
 
-Public Type T_STRING_ARG_CHK_INF
+Public Type T_STRING_ARG_SEARCH_INF
     '文字列
-    Str As String
+    Target As String
     
-    '検索文字列
+    '検索指定
     Search As String
     SrchSpec As E_STRING_SPEC
     SrchPtn As String
     
-    'チェックパターン
+    '一致指定
     ChkPtn As String
-    ChkPtnSpec As E_STRING_SPEC
+    ChkSpec As E_STRING_SPEC
     ChkPtnOfs As Long
-    ChkWordFlg As Boolean
     
     '検索位置指定
     SttPos As Long
     EndPos As Long
     Length As Long
+    
+    '取得位置指定
+    GetIdx As Long
 End Type
 
 Public Type T_STRING_ARG_GET_INF
-    ChkInf As T_STRING_ARG_CHK_INF
+    SrchInf As T_STRING_ARG_SEARCH_INF
     
     SttStr As String
     EndStr As String
@@ -87,11 +93,10 @@ Public Type T_STRING_ARG_GET_INF
 End Type
 
 Public Type T_STRING_ARG_DEL_INF
-    ChkInf As T_STRING_ARG_CHK_INF
+    SrchInf As T_STRING_ARG_SEARCH_INF
     
+    DelPosSpec As E_STRING_SPEC
     AddDelFlg As Boolean
-    DelSpec As E_STRING_SPEC
-    DelPosCnt As Long
 End Type
 
 '==============================================================================
@@ -107,7 +112,7 @@ End Type
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgAddInf() As T_STRING_ARG_ADD_INF
     With G_String_InitArgAddInf
-        .Str = ""
+        .Target = ""
         
         .Dlmt = ""
         .DlmtChkFlg = True
@@ -132,7 +137,7 @@ Public Function F_String_ReturnAdd_Inf( _
     
     With aArgInf
         '初期化
-        wkRtn = .Str
+        wkRtn = .Target
         wkAddChkFlg = .AddChkFlg
         
         '追加ありの場合
@@ -209,14 +214,14 @@ End Function
 ' 文字列追加（引数指定）
 '------------------------------------------------------------------------------
 Public Function F_String_ReturnAdd( _
-        ByVal aStr As String, ByVal aAdd As String, _
+        ByVal aTarget As String, ByVal aAdd As String, _
         Optional ByVal aDlmt As String = "", _
         Optional ByVal aAddSpec As E_STRING_SPEC = E_STRING_SPEC_POS_END, _
         Optional ByVal aExcluded As String = "") As String
     Dim wkArgInf As T_STRING_ARG_ADD_INF: wkArgInf = G_String_InitArgAddInf()
     
     With wkArgInf
-        .Str = aStr
+        .Target = aTarget
         .Dlmt = aDlmt
         .Add = aAdd
         .AddSpec = aAddSpec
@@ -227,62 +232,68 @@ Public Function F_String_ReturnAdd( _
 End Function
 
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-' 文字列検索情報配列取得
+' 検索情報配列取得
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ' 引数情報初期化
 '------------------------------------------------------------------------------
-Public Property Get G_String_InitArgChkInf() As T_STRING_ARG_CHK_INF
-    With G_String_InitArgChkInf
-        .Str = ""
+Public Property Get G_String_InitArgSrchInf() As T_STRING_ARG_SEARCH_INF
+    With G_String_InitArgSrchInf
+        .Target = ""
         
         .Search = ""
-        .SrchSpec = E_STRING_SPEC_POS_MID
+        .SrchSpec = E_STRING_SPEC_MATCH_MID
         .SrchPtn = ""
         
         .ChkPtn = ""
-        .ChkPtnSpec = E_STRING_SPEC_POS_MATCH
+        .ChkSpec = E_STRING_SPEC_MATCH_ALL
         .ChkPtnOfs = 1
-        .ChkWordFlg = False
         
         .SttPos = D_POS_START
         .EndPos = D_POS_END
         .Length = D_POS_END
+        
+        .GetIdx = D_IDX_ALL
     End With
 End Property
 
 '------------------------------------------------------------------------------
-' 文字列検索情報配列取得（引数情報指定）
+' 検索情報配列取得（引数情報指定）
 '------------------------------------------------------------------------------
 Public Function F_String_GetSearchInfArray_Inf( _
         ByRef aRtnAryAry As Variant, _
-        ByRef aArgInf As T_STRING_ARG_CHK_INF) As Boolean
+        ByRef aArgInf As T_STRING_ARG_SEARCH_INF) As Boolean
     Dim wkRtnAryAry As Variant
     Dim wkRtnAry(D_IDX_START To E_STRING_IDX_SRCH_INF_EEND) As Variant
     Dim wkAddFlg As Boolean
     
-    Dim wkArgInf As T_STRING_ARG_CHK_INF: wkArgInf = aArgInf
-    Dim wkSttPos As Long, wkEndPos As Long, wkMaxPos As Long
+    Dim wkArgInf As T_STRING_ARG_SEARCH_INF: wkArgInf = aArgInf
+    Dim wkSttPos As Long, wkEndPos As Long
+    Dim wkTgtLen As Long
     
     Dim wkSrchPtn As String
     Dim wkSrchRegExp As RegExp
-    Dim wkSrchMatch As Variant
-    Dim wkSrchCnt As Long
+    Dim wkMatch As Variant
+    Dim wkMatchCnt As Long
     
     Dim wkChkPtn As String
     Dim wkChkRegExp As RegExp
     Dim wkChkStt As Long, wkChkEnd As Long
     
+    Dim wkGetIdx As Long
+    Dim wkRtnIdx As Long
+    
+    On Error GoTo PROC_ERROR
     With aArgInf
         '引数チェック
-        If .Str = "" Or (.Search = "" And .SrchPtn = "") Or .SttPos < D_POS_START Then
+        If .Target = "" Or (.Search = "" And .SrchPtn = "") Or .SttPos < D_POS_START Then
             Exit Function
         End If
         
         '終端位置調整
         wkSttPos = .SttPos
         wkEndPos = .EndPos
-        wkMaxPos = Len(.Str)
-        If PF_String_GetPosEndAdjust(wkEndPos, Len(.Str), wkSttPos, .Length) <> True Then
+        wkTgtLen = Len(.Target)
+        If PF_String_GetPosEndAdjust(wkEndPos, Len(.Target), wkSttPos, .Length) <> True Then
             Exit Function
         End If
         
@@ -300,71 +311,86 @@ Public Function F_String_GetSearchInfArray_Inf( _
             .Global = True
             .Pattern = wkSrchPtn
         End With
-        Set wkSrchMatch = wkSrchRegExp.Execute(Mid(.Str, wkSttPos, (wkEndPos - wkSttPos + 1)))
+        Set wkMatch = wkSrchRegExp.Execute(Mid(.Target, wkSttPos, (wkEndPos - wkSttPos + 1)))
         '検索結果が無ければ終了
-        If wkSrchMatch.Count <= 0 Then
+        If wkMatch.Count <= 0 Then
             Exit Function
         End If
         
-        'チェックパターンがある場合
-        wkChkPtn = .ChkPtn
-        If .ChkWordFlg = True And wkChkPtn = "" Then
-            wkChkPtn = D_STRING_CHECKWORD
-        End If
-        If wkChkPtn <> "" And .ChkPtnOfs > 0 Then
-            'チェックパターン指定がある場合
-            If M_Common.F_CheckBitOn(.ChkPtnSpec, E_STRING_SPEC_POS_MATCH) = True Then
-                'チェックパターン作成
-                If .ChkWordFlg <> True Then
-                    wkChkPtn = PF_String_ReturnCheckPattern(wkSrchPtn, .SrchSpec, wkChkPtn, .ChkPtnSpec)
+        '一致パターンがある場合
+        If .ChkPtn <> "" And .ChkPtnOfs > 0 Then
+            'チェック指定がある場合
+            If M_Common.F_CheckBitOn(.ChkSpec, E_STRING_SPEC_MATCH_MASK) = True Then
+                '一致パターン作成
+                If M_Common.F_CheckBitOn(.ChkSpec, E_STRING_SPEC_MATCH_WORD) = True Then
+                    wkChkPtn = PF_String_ReturnCheckPatternWord(wkSrchPtn, .SrchSpec, .ChkPtn, .ChkSpec)
                 Else
-                    wkChkPtn = PF_String_ReturnCheckPatternWord(wkSrchPtn, .SrchSpec, wkChkPtn, .ChkPtnSpec)
+                    wkChkPtn = PF_String_ReturnCheckPattern(wkSrchPtn, .SrchSpec, .ChkPtn, .ChkSpec)
                 End If
-            'チェックパターン指定がない場合
-            Else
-                'チェックパターンをそのまま設定
-                wkChkPtn = .ChkPtn
             End If
             
-            'チェック検索設定
-            Set wkChkRegExp = New RegExp
-            With wkChkRegExp
-                .IgnoreCase = False
-                .Global = False
-                .Pattern = wkChkPtn
-            End With
+            'チェックパターンがある場合、チェックパターン設定
+            If wkChkPtn <> "" Then
+                'チェック検索設定
+                Set wkChkRegExp = New RegExp
+                With wkChkRegExp
+                    .IgnoreCase = False
+                    .Global = False
+                    .Pattern = wkChkPtn
+                End With
+            End If
         End If
-    End With
         
-    '検索ヒット数分、位置情報を抽出
-    For wkSrchCnt = 0 To wkSrchMatch.Count - 1
-        '初期化
-        wkAddFlg = True
-        wkRtnAry(E_STRING_IDX_SRCH_INF_POS_START) = wkSttPos + wkSrchMatch.Item(wkSrchCnt).FirstIndex
-        wkRtnAry(E_STRING_IDX_SRCH_INF_LENGTH) = wkSrchMatch.Item(wkSrchCnt).Length
-            
-        If Not wkChkRegExp Is Nothing Then
-            'チェック位置調整
-            wkChkStt = wkRtnAry(E_STRING_IDX_SRCH_INF_POS_START)
-            wkChkEnd = wkChkStt + wkRtnAry(E_STRING_IDX_SRCH_INF_LENGTH) - 1
-
-            '開始位置調整
-            If wkChkStt > 1 Then
-                wkChkStt = wkChkStt - aArgInf.ChkPtnOfs
-            End If
-            '終了位置調整
-            If (wkChkEnd + aArgInf.ChkPtnOfs) <= wkMaxPos Then
-                wkChkEnd = wkChkEnd + aArgInf.ChkPtnOfs
+        '検索ヒット数分、位置情報を抽出
+        wkGetIdx = D_IDX_START
+        wkRtnIdx = D_IDX_START
+        For wkMatchCnt = 0 To wkMatch.Count - 1
+            '初期化
+            wkAddFlg = True
+            wkRtnAry(E_STRING_IDX_SRCH_INF_POS_START) = wkSttPos + wkMatch.Item(wkMatchCnt).FirstIndex
+            wkRtnAry(E_STRING_IDX_SRCH_INF_LENGTH) = wkMatch.Item(wkMatchCnt).Length
+                
+            If Not wkChkRegExp Is Nothing Then
+                'チェック位置調整
+                wkChkStt = wkRtnAry(E_STRING_IDX_SRCH_INF_POS_START)
+                wkChkEnd = wkChkStt + wkRtnAry(E_STRING_IDX_SRCH_INF_LENGTH) - 1
+    
+                '開始位置調整
+                wkChkStt = wkChkStt - .ChkPtnOfs
+                If wkChkStt < D_POS_START Then
+                    wkChkStt = D_POS_START
+                End If
+                '終了位置調整
+                wkChkEnd = wkChkEnd + .ChkPtnOfs
+                If wkChkEnd > wkTgtLen Then
+                    wkChkEnd = wkTgtLen
+                End If
+                    
+                wkAddFlg = wkChkRegExp.Test(Mid(.Target, wkChkStt, (wkChkEnd - wkChkStt + 1)))
             End If
                 
-            wkAddFlg = wkChkRegExp.Test(Mid(aArgInf.Str, wkChkStt, (wkChkEnd - wkChkStt + 1)))
-        End If
-            
-        If wkAddFlg = True Then
-            '取得結果を配列に登録
-            wkRtnAryAry = M_Common.F_ReturnArrayAdd(wkRtnAryAry, wkRtnAry)
-        End If
-    Next wkSrchCnt
+            If wkAddFlg = True Then
+                '取得インデックスが設定なしまたは取得インデックスが一致の場合、戻り引数に設定
+                If .GetIdx < D_IDX_START Or wkGetIdx = .GetIdx Then
+                    '取得カウンタが全取得の場合は設定位置を調整
+                    If .GetIdx = D_IDX_ALL Then
+                        wkRtnIdx = wkGetIdx
+                    End If
+                    '取得結果を配列に登録
+                    wkRtnAryAry = M_Common.F_ReturnArrayAdd(wkRtnAryAry, wkRtnAry, aIdx:=wkRtnIdx)
+                    
+                    'インデックスが一致の場合は取得完了のためループ終了
+                    If wkGetIdx = .GetIdx Then
+                        Exit For
+                    End If
+                End If
+                
+                '取得カウンタ更新
+                wkGetIdx = wkGetIdx + 1
+            End If
+        Next wkMatchCnt
+    End With
+    On Error GoTo 0
     
     '指定パターンが見つかった場合
     If IsArray(wkRtnAryAry) = True Then
@@ -372,27 +398,24 @@ Public Function F_String_GetSearchInfArray_Inf( _
         F_String_GetSearchInfArray_Inf = True
     End If
     
-    Set wkSrchRegExp = Nothing
-    Set wkSrchMatch = Nothing
-    Set wkChkRegExp = Nothing
+PROC_ERROR:
+    '何もしない
 End Function
 
 '------------------------------------------------------------------------------
-' 文字列検索情報配列取得（引数指定）
+' 検索情報配列取得（引数指定）
 '------------------------------------------------------------------------------
 Public Function F_String_GetSearchInfArray( _
         ByRef aRtnAryAry As Variant, _
-        ByVal aStr As String, ByVal aSearch As String, _
-        Optional ByVal aSrchPtnFlg As Boolean = False) As Boolean
-    Dim wkArgInf As T_STRING_ARG_CHK_INF: wkArgInf = G_String_InitArgChkInf()
+        ByVal aTarget As String, _
+        Optional ByVal aSearch As String = "", Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_MID, Optional ByVal aSrchPtn As String = "") As Boolean
+    Dim wkArgInf As T_STRING_ARG_SEARCH_INF: wkArgInf = G_String_InitArgSrchInf()
     
     With wkArgInf
-        .Str = aStr
-        If aSrchPtnFlg = True Then
-            .SrchPtn = aSearch
-        Else
-            .Search = aSearch
-        End If
+        .Target = aTarget
+        .Search = aSearch
+        .SrchSpec = aSrchSpec
+        .SrchPtn = aSrchPtn
     End With
     
     F_String_GetSearchInfArray = F_String_GetSearchInfArray_Inf(aRtnAryAry, wkArgInf)
@@ -403,21 +426,19 @@ End Function
 '------------------------------------------------------------------------------
 Public Function F_String_GetSearchInfArrayWord( _
         ByRef aRtnAryAry As Variant, _
-        ByVal aStr As String, ByVal aSearch As String, _
-        Optional ByVal aChkPtn As String = D_STRING_CHECKWORD, _
-        Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_POS_MID, _
-        Optional ByVal aChkPtnSpec As E_STRING_SPEC = E_STRING_SPEC_POS_MATCH) As Boolean
-    Dim wkArgInf As T_STRING_ARG_CHK_INF: wkArgInf = G_String_InitArgChkInf()
+        ByVal aTarget As String, _
+        Optional ByVal aSearch As String = "", Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_MID, Optional ByVal aSrchPtn As String = "", _
+        Optional ByVal aChkPtn As String = D_STRING_MATCH_CHECKWORD, Optional ByVal aChkSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_ALL) As Boolean
+    Dim wkArgInf As T_STRING_ARG_SEARCH_INF: wkArgInf = G_String_InitArgSrchInf()
     
     '引数情報に設定
     With wkArgInf
-        .Str = aStr
+        .Target = aTarget
         .Search = aSearch
         .SrchSpec = aSrchSpec
         
-        .ChkWordFlg = True
         .ChkPtn = aChkPtn
-        .ChkPtnSpec = aChkPtnSpec
+        .ChkSpec = aChkSpec Or E_STRING_SPEC_MATCH_WORD
     End With
     
     F_String_GetSearchInfArrayWord = F_String_GetSearchInfArray_Inf(aRtnAryAry, wkArgInf)
@@ -429,53 +450,26 @@ End Function
 ' 文字列存在チェック（引数情報指定）
 '------------------------------------------------------------------------------
 Public Function F_String_Check_Inf( _
-        ByRef aArgInf As T_STRING_ARG_CHK_INF) As Boolean
-    Dim wkRtn As Boolean
-    
+        ByRef aArgInf As T_STRING_ARG_SEARCH_INF) As Boolean
     Dim wkTmpAryAry As Variant
-    Dim wkTmpPos As Long
     
-    If F_String_GetSearchInfArray_Inf(wkTmpAryAry, aArgInf) <> True Then
-        Exit Function
-    End If
-    
-    With aArgInf
-        '先頭一致指定アリの場合
-        If M_Common.F_CheckBitOn(.SrchSpec, E_STRING_SPEC_POS_START) = True Then
-            wkTmpPos = LBound(wkTmpAryAry)
-            
-            '先頭でなければ終了
-            If wkTmpAryAry(wkTmpPos)(E_STRING_IDX_SRCH_INF_POS_START) > 1 Then
-                Exit Function
-            End If
-        End If
-        '終端一致指定アリの場合
-        If M_Common.F_CheckBitOn(.SrchSpec, E_STRING_SPEC_POS_END) = True Then
-            wkTmpPos = UBound(wkTmpAryAry)
-            
-            '終端でなければ終了
-            If (wkTmpAryAry(wkTmpPos)(E_STRING_IDX_SRCH_INF_POS_START) + wkTmpAryAry(wkTmpPos)(E_STRING_IDX_SRCH_INF_LENGTH) - 1) < _
-                    Len(.Str) Then
-                Exit Function
-            End If
-        End If
-    End With
-    
-    F_String_Check_Inf = True
+    F_String_Check_Inf = F_String_GetSearchInfArray_Inf(wkTmpAryAry, aArgInf)
 End Function
 
 '------------------------------------------------------------------------------
 ' 文字列存在チェック（引数指定）
 '------------------------------------------------------------------------------
 Public Function F_String_Check( _
-        ByVal aStr As String, ByVal aSearch As String, _
-        Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_POS_MID) As Boolean
-    Dim wkArgInf As T_STRING_ARG_CHK_INF: wkArgInf = G_String_InitArgChkInf()
+        ByVal aTarget As String, _
+        Optional ByVal aSearch As String = "", Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_MID, Optional ByVal aSrchPtn As String = "") As Boolean
+    Dim wkArgInf As T_STRING_ARG_SEARCH_INF: wkArgInf = G_String_InitArgSrchInf()
     
     With wkArgInf
-        .Str = aStr
+        .Target = aTarget
+        
         .Search = aSearch
         .SrchSpec = aSrchSpec
+        .SrchPtn = aSrchPtn
     End With
     
     F_String_Check = F_String_Check_Inf(wkArgInf)
@@ -485,25 +479,14 @@ End Function
 ' 単語存在チェック（引数指定）
 '------------------------------------------------------------------------------
 Public Function F_String_CheckWord( _
-        ByVal aStr As String, ByVal aSearch As String, _
-        Optional ByVal aChkPtn As String = D_STRING_CHECKWORD, _
-        Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_POS_MID, _
-        Optional ByVal aChkPtnSpec As E_STRING_SPEC = E_STRING_SPEC_POS_MATCH) As Boolean
-    Dim wkRtn As Boolean
-    
-    Dim wkArgInf As T_STRING_ARG_CHK_INF: wkArgInf = G_String_InitArgChkInf()
+        ByVal aTarget As String, _
+        Optional ByVal aSearch As String = "", Optional ByVal aSrchSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_MID, Optional ByVal aSrchPtn As String = "", _
+        Optional ByVal aChkPtn As String = D_STRING_MATCH_CHECKWORD, Optional ByVal aChkSpec As E_STRING_SPEC = E_STRING_SPEC_MATCH_ALL) As Boolean
     Dim wkTmpAryAry As Variant
     
-    With wkArgInf
-        .Str = aStr
-        .Search = aSearch
-        .SrchSpec = aSrchSpec
-        
-        .ChkPtn = aChkPtn
-        .ChkPtnSpec = aChkPtnSpec
-    End With
-    
-    F_String_CheckWord = F_String_Check_Inf(wkArgInf)
+    F_String_CheckWord = F_String_GetSearchInfArrayWord(wkTmpAryAry, aTarget, aSearch:=aSearch, aSrchSpec:=aSrchSpec, aSrchPtn:=aSrchPtn, _
+                                                        aChkPtn:=aChkPtn, aChkSpec:=aChkSpec)
+
 End Function
 
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -511,17 +494,17 @@ End Function
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Public Function F_String_GetSplit( _
         ByRef aRtnAry As Variant, _
-        ByVal aStr As String, ByVal aDlmt As String, _
+        ByVal aTarget As String, ByVal aDlmt As String, _
         Optional ByVal aIncChkFlg As Boolean = False) As Boolean
     Dim wkRtnAry As Variant
     
     '引数チェック
-    If aStr = "" Or aDlmt = "" Then
+    If aTarget = "" Or aDlmt = "" Then
         Exit Function
     End If
     
     '区切りで分割
-    wkRtnAry = Split(aStr, aDlmt)
+    wkRtnAry = Split(aTarget, aDlmt)
     
     '区切り包含チェックありの場合、区切り無しはNGで終了
     If aIncChkFlg = True Then
@@ -544,7 +527,7 @@ Public Function F_String_GetSplitExtension( _
     Dim wkTmpAry As Variant, wkTmp As Variant
     
     '文字列分割（引数チェック兼用）
-    If F_String_GetSplit(wkTmpAry, aExtSpec, ";") <> True Then
+    If F_String_GetSplit(wkTmpAry, aExtSpec, D_STRING_DLMT_EXTENSION) <> True Then
         Exit Function
     End If
     
@@ -570,7 +553,7 @@ End Function
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgGetInf() As T_STRING_ARG_GET_INF
     With G_String_InitArgGetInf
-        .ChkInf = G_String_InitArgChkInf
+        .SrchInf = G_String_InitArgSrchInf
         
         .SttStr = ""
         .EndStr = ""
@@ -591,7 +574,7 @@ Public Function F_String_GetMidStr_Inf( _
     
     Dim wkSttInfAry As Variant, wkSttInf As Variant
     Dim wkEndInfAry As Variant, wkEndInf As Variant
-    Dim wkArgChkInf As T_STRING_ARG_CHK_INF
+    Dim wkArgSrchInf As T_STRING_ARG_SEARCH_INF
     
     Dim wkSttCnt As Long, wkSttNow As Long
     Dim wkChkCnt As Long
@@ -601,17 +584,17 @@ Public Function F_String_GetMidStr_Inf( _
     Dim wkGetSttPos As Long, wkGetEndPos As String
     
     With aArgInf
-        wkArgChkInf = aArgInf.ChkInf
+        wkArgSrchInf = aArgInf.SrchInf
         
-        wkArgChkInf.Search = .SttStr
+        wkArgSrchInf.Search = .SttStr
         '開始位置取得（引数チェック兼用）
-        If F_String_GetSearchInfArray_Inf(wkSttInfAry, wkArgChkInf) <> True Then
+        If F_String_GetSearchInfArray_Inf(wkSttInfAry, wkArgSrchInf) <> True Then
             Exit Function
         End If
         
-        wkArgChkInf.Search = .EndStr
+        wkArgSrchInf.Search = .EndStr
         '終了位置取得（引数チェック兼用）
-        If F_String_GetSearchInfArray_Inf(wkEndInfAry, wkArgChkInf) <> True Then
+        If F_String_GetSearchInfArray_Inf(wkEndInfAry, wkArgSrchInf) <> True Then
             Exit Function
         End If
     End With
@@ -657,7 +640,7 @@ Public Function F_String_GetMidStr_Inf( _
             '開始位置調整
             '検索前文字列追加指定ありの場合
             If .AddBefFlg = True Then
-                wkGetSttPos = .ChkInf.SttPos
+                wkGetSttPos = .SrchInf.SttPos
             '検索文字列追加指定なしの場合
             ElseIf .AddSrchFlg <> True Then
                 wkGetSttPos = wkGetSttInf(E_STRING_IDX_SRCH_INF_POS_START) + wkGetSttInf(E_STRING_IDX_SRCH_INF_LENGTH)
@@ -673,7 +656,7 @@ Public Function F_String_GetMidStr_Inf( _
             End If
             
             If wkGetSttPos <= wkGetEndPos Then
-                wkRtn = Mid(.ChkInf.Str, wkGetSttPos, (wkGetEndPos - wkGetSttPos + 1))
+                wkRtn = Mid(.SrchInf.Target, wkGetSttPos, (wkGetEndPos - wkGetSttPos + 1))
             End If
         End With
         
@@ -689,14 +672,14 @@ End Function
 '------------------------------------------------------------------------------
 Public Function F_String_GetMidStr( _
         ByRef aRtn As String, _
-        ByVal aStr As String, _
+        ByVal aTarget As String, _
         ByVal aSttStr As String, ByVal aEndStr As String, _
         Optional ByVal aAddBefFlg As Boolean = False, _
         Optional ByVal aAddSrchFlg As Boolean = False) As Boolean
     Dim wkArgInf As T_STRING_ARG_GET_INF: wkArgInf = G_String_InitArgGetInf()
     
     With wkArgInf
-        .ChkInf.Str = aStr
+        .SrchInf.Target = aTarget
         
         .SttStr = aSttStr
         .EndStr = aEndStr
@@ -711,19 +694,19 @@ End Function
 ' 指定文字列削除
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Public Function F_String_ReturnDelete( _
-        ByVal aStr As String, _
+        ByVal aTarget As String, _
         ByVal aDelete As String, ByVal aDelSpec As E_STRING_SPEC) As String
-    Dim wkRtn As String: wkRtn = aStr
+    Dim wkRtn As String: wkRtn = aTarget
     Dim wkLen As Long
     Dim wkDelLen As Long
     
     '文字列と削除文字がある場合
-    If aStr <> "" And aDelete <> "" Then
+    If aTarget <> "" And aDelete <> "" Then
         '中間位置削除の場合
         If M_Common.F_CheckBitOn(aDelSpec, E_STRING_SPEC_POS_MID) = True Then
-            wkRtn = Replace(aStr, aDelete, "")
+            wkRtn = Replace(aTarget, aDelete, "")
         Else
-            wkLen = Len(aStr)
+            wkLen = Len(aTarget)
             wkDelLen = Len(aDelete)
             
             '開始位置削除指定の場合
@@ -756,10 +739,10 @@ End Function
 '------------------------------------------------------------------------------
 Public Property Get G_String_InitArgDelInf() As T_STRING_ARG_DEL_INF
     With G_String_InitArgDelInf
-        .ChkInf = G_String_InitArgChkInf
+        .SrchInf = G_String_InitArgSrchInf
         
-        .DelSpec = E_STRING_SPEC_POS_START
-        .DelPosCnt = D_IDX_START
+        .DelPosSpec = E_STRING_SPEC_POS_START
+        .AddDelFlg = False
     End With
 End Property
 
@@ -777,47 +760,41 @@ Public Function F_String_ReturnDeleteStr_Inf( _
     
     '文字列位置取得
     With wkArgInf
-        wkRtn = .ChkInf.Str
+        wkRtn = .SrchInf.Target
         
         '検索文字列作成
-        If F_String_GetSearchInfArray_Inf(wkInfAryAry, .ChkInf) <> True Then
+        If F_String_GetSearchInfArray_Inf(wkInfAryAry, .SrchInf) <> True Then
             '検索文字が見つからなかった場合は無視
-        ElseIf .DelPosCnt > UBound(wkInfAryAry) Then
-            '削除指定カウンタが配列を超えている場合は無視
         Else
-            '削除指定カウンタ調整
-            If .DelPosCnt < D_IDX_START Then
-                .DelPosCnt = UBound(wkInfAryAry)
-            End If
-            wkStrLen = Len(.ChkInf.Str)
+            wkStrLen = Len(.SrchInf.Target)
             
             '開始～文字列位置まで削除
-            If M_Common.F_CheckBitOn(.DelSpec, E_STRING_SPEC_POS_START) = True Then
+            If M_Common.F_CheckBitOn(.DelPosSpec, E_STRING_SPEC_POS_START) = True Then
                 '削除開始位置を設定
-                wkDelStt = .ChkInf.SttPos
+                wkDelStt = .SrchInf.SttPos
                 
                 '削除終了位置を設定
-                wkDelEnd = wkInfAryAry(.DelPosCnt)(E_STRING_IDX_SRCH_INF_POS_START)
+                wkDelEnd = wkInfAryAry(LBound(wkInfAryAry))(E_STRING_IDX_SRCH_INF_POS_START)
                 '削除文字列追加指定ありの場合
                 If .AddDelFlg = True Then
                     wkDelEnd = wkDelEnd - 1
                 '削除文字列追加指定なしの場合
                 Else
-                    wkDelEnd = wkDelEnd + wkInfAryAry(.DelPosCnt)(E_STRING_IDX_SRCH_INF_LENGTH) - 1
+                    wkDelEnd = wkDelEnd + wkInfAryAry(LBound(wkInfAryAry))(E_STRING_IDX_SRCH_INF_LENGTH) - 1
                 End If
             '文字列位置～終了まで削除
             Else
                 '削除開始位置を設定
-                wkDelStt = wkInfAryAry(.DelPosCnt)(E_STRING_IDX_SRCH_INF_POS_START)
+                wkDelStt = wkInfAryAry(LBound(wkInfAryAry))(E_STRING_IDX_SRCH_INF_POS_START)
                 '削除文字列追加指定ありの場合
                 If .AddDelFlg = True And wkDelStt > D_POS_START Then
-                    wkDelStt = wkDelStt + wkInfAryAry(.DelPosCnt)(E_STRING_IDX_SRCH_INF_LENGTH)
+                    wkDelStt = wkDelStt + wkInfAryAry(LBound(wkInfAryAry))(E_STRING_IDX_SRCH_INF_LENGTH)
                 End If
                 
                 '削除終了位置を設定
-                wkDelEnd = .ChkInf.EndPos
+                wkDelEnd = .SrchInf.EndPos
                 If wkDelEnd < D_POS_START Then
-                    PF_String_GetPosEndAdjust wkDelEnd, wkStrLen, .ChkInf.SttPos, .ChkInf.Length
+                    PF_String_GetPosEndAdjust wkDelEnd, wkStrLen, .SrchInf.SttPos, .SrchInf.Length
                 End If
             End If
             
@@ -825,10 +802,10 @@ Public Function F_String_ReturnDeleteStr_Inf( _
             If wkDelStt <= wkDelEnd Then
                 wkRtn = ""
                 If wkDelStt > 1 Then
-                    wkRtn = Left(.ChkInf.Str, wkDelStt - 1)
+                    wkRtn = Left(.SrchInf.Target, wkDelStt - 1)
                 End If
                 If wkDelEnd < wkStrLen Then
-                    wkRtn = wkRtn & Right(.ChkInf.Str, (wkStrLen - wkDelEnd))
+                    wkRtn = wkRtn & Right(.SrchInf.Target, (wkStrLen - wkDelEnd))
                 End If
             End If
         End If
@@ -841,17 +818,18 @@ End Function
 ' 指定文字列以降、以前削除（引数指定）
 '------------------------------------------------------------------------------
 Public Function F_String_ReturnDeleteStr( _
-        ByVal aStr As String, _
+        ByVal aTarget As String, _
         ByVal aDelete As String, _
-        Optional ByVal aDelSpec As E_STRING_SPEC = E_STRING_SPEC_POS_START, _
-        Optional ByVal aDelPosCnt As Long = D_IDX_START) As String
+        Optional ByVal aDelPosSpec As E_STRING_SPEC = E_STRING_SPEC_POS_START, _
+        Optional ByVal aDelIdx As Long = D_IDX_START) As String
     Dim wkArgInf As T_STRING_ARG_DEL_INF: wkArgInf = G_String_InitArgDelInf
     
     With wkArgInf
-        .ChkInf.Str = aStr
-        .ChkInf.Search = aDelete
-        .DelSpec = aDelSpec
-        .DelPosCnt = aDelPosCnt
+        .SrchInf.Target = aTarget
+        .SrchInf.Search = aDelete
+        .SrchInf.GetIdx = aDelIdx
+        
+        .DelPosSpec = aDelPosSpec
     End With
     
     F_String_ReturnDeleteStr = F_String_ReturnDeleteStr_Inf(wkArgInf)
@@ -908,28 +886,23 @@ End Function
 '------------------------------------------------------------------------------
 Private Function PF_String_ReturnCheckPattern( _
         ByVal aSrchPtn As String, ByVal aSrchSpec As E_STRING_SPEC, _
-        ByVal aChkPtn As String, ByVal aChkPtnSpec As E_STRING_SPEC) As String
+        ByVal aChkPtn As String, ByVal aChkSpec As E_STRING_SPEC) As String
     Dim wkRtn As String
     Dim wkPattern As String
     
     wkRtn = "(" & aSrchPtn & ")"
     
-    'パターンセット
-    If aChkPtnSpec <> E_STRING_SPEC_NONE And aChkPtn <> "" Then
-        If M_Common.F_CheckBitOn(aChkPtnSpec, E_STRING_SPEC_WORD_NOTWORD) = True Then
-            wkPattern = "[^" & aChkPtn & "]+"
-        Else
-            wkPattern = "[" & aChkPtn & "]+"
+    '一致パターン追加ありの場合
+    If aChkPtn <> "" And aChkSpec <> E_STRING_SPEC_NONE Then
+        '開始側チェック指定あり、かつ開始側一致指定なしの場合、検索文字列開始側にチェックパターン追加
+        If M_Common.F_CheckBitOn(aChkSpec, E_STRING_SPEC_MATCH_START) = True And _
+                M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_MATCH_START) <> True Then
+            wkRtn = aChkPtn & wkRtn
         End If
-        '開始側チェック指定ありかつ開始側検索指定なしの場合
-        If M_Common.F_CheckBitOn(aChkPtnSpec, E_STRING_SPEC_POS_START) = True And _
-                M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_POS_START) <> True Then
-            wkRtn = wkPattern & wkRtn
-        End If
-        '終了側チェック指定あり
-        If M_Common.F_CheckBitOn(aChkPtnSpec, E_STRING_SPEC_POS_END) = True And _
-                M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_POS_END) <> True Then
-            wkRtn = wkRtn & wkPattern
+        '終端側チェック指定あり、かつ終端側一致指定なしの場合、検索文字列終端側にチェックパターン追加
+        If M_Common.F_CheckBitOn(aChkSpec, E_STRING_SPEC_MATCH_END) = True And _
+                M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_MATCH_END) <> True Then
+            wkRtn = wkRtn & aChkPtn
         End If
     End If
     
@@ -951,28 +924,28 @@ End Function
 '------------------------------------------------------------------------------
 Private Function PF_String_ReturnCheckPatternWord( _
         ByVal aSrchPtn As String, ByVal aSrchSpec As E_STRING_SPEC, _
-        ByVal aChkPtn As String, ByVal aChkPtnSpec As E_STRING_SPEC) As String
+        ByVal aChkPtn As String, ByVal aChkSpec As E_STRING_SPEC) As String
     Dim wkRtn As String
     Dim wkTmpStr As String
     
     '中間検索指定ありの場合、中央検索指定
-    If M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_POS_MID) = True Then
-        wkRtn = PF_String_ReturnCheckPattern(aSrchPtn, aSrchSpec, aChkPtn, (aChkPtnSpec Or E_STRING_SPEC_WORD_NOTWORD))
+    If M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_MATCH_MID) = True Then
+        wkRtn = PF_String_ReturnCheckPattern(aSrchPtn, aSrchSpec, aChkPtn, aChkSpec)
     End If
-    
+        
     '先頭検索指定または中間検索指定あり、かつパターン指定に終端ありの場合
-    If M_Common.F_CheckBitOn(aSrchSpec, (E_STRING_SPEC_POS_START Or E_STRING_SPEC_POS_MID)) = True And _
-            M_Common.F_CheckBitOn(aChkPtnSpec, E_STRING_SPEC_POS_END) = True Then
-        '終端一致確認を追加
-        wkTmpStr = PF_String_ReturnCheckPattern(aSrchPtn, E_STRING_SPEC_POS_START, aChkPtn, (E_STRING_SPEC_POS_END Or E_STRING_SPEC_WORD_NOTWORD))
+    If M_Common.F_CheckBitOn(aSrchSpec, (E_STRING_SPEC_MATCH_START Or E_STRING_SPEC_MATCH_MID)) = True And _
+            M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_MATCH_END) = True Then
+        '開始位置一致確認を追加
+        wkTmpStr = PF_String_ReturnCheckPattern(aSrchPtn, E_STRING_SPEC_MATCH_START, aChkPtn, E_STRING_SPEC_MATCH_END)
         wkRtn = F_String_ReturnAdd(wkRtn, wkTmpStr, aDlmt:="|")
     End If
-    
+        
     '終端検索指定または中間検索指定あり、かつパターン指定に先頭ありの場合
-    If M_Common.F_CheckBitOn(aSrchSpec, (E_STRING_SPEC_POS_END Or E_STRING_SPEC_POS_MID)) = True And _
-            M_Common.F_CheckBitOn(aChkPtnSpec, E_STRING_SPEC_POS_START) = True Then
-        '終端一致確認を追加
-        wkTmpStr = PF_String_ReturnCheckPattern(aSrchPtn, E_STRING_SPEC_POS_END, aChkPtn, (E_STRING_SPEC_POS_START Or E_STRING_SPEC_WORD_NOTWORD))
+    If M_Common.F_CheckBitOn(aSrchSpec, (E_STRING_SPEC_MATCH_END Or E_STRING_SPEC_MATCH_MID)) = True And _
+            M_Common.F_CheckBitOn(aSrchSpec, E_STRING_SPEC_MATCH_START) = True Then
+        '終端位置一致確認を追加
+        wkTmpStr = PF_String_ReturnCheckPattern(aSrchPtn, E_STRING_SPEC_MATCH_END, aChkPtn, E_STRING_SPEC_MATCH_START)
         wkRtn = F_String_ReturnAdd(wkRtn, wkTmpStr, aDlmt:="|")
     End If
     
