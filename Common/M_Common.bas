@@ -5,6 +5,8 @@ Option Explicit
 '##############################################################################
 ' 参照設定          |   ―
 '------------------------------------------------------------------------------
+' 共通バージョン    |   250504
+'------------------------------------------------------------------------------
 
 '==============================================================================
 ' 公開定義
@@ -15,16 +17,6 @@ Public Const D_POS_START As Long = 1
 Public Const D_POS_NONE As Long = D_POS_START - 1
 Public Const D_POS_NOW As Long = D_POS_NONE - 1
 Public Const D_POS_END As Long = D_POS_NOW - 1
-
-Public Const D_ROW_START As Long = D_POS_START
-Public Const D_ROW_NONE As Long = D_POS_NONE
-Public Const D_ROW_NOW As Long = D_POS_NOW
-Public Const D_ROW_END As Long = D_POS_END
-
-Public Const D_CLM_START As Integer = D_POS_START
-Public Const D_CLM_NONE As Integer = D_POS_NONE
-Public Const D_CLM_NOW As Long = D_POS_NOW
-Public Const D_CLM_END As Integer = D_POS_END
 
 Public Const D_IDX_START As Long = 1
 Public Const D_IDX_NONE As Long = D_IDX_START - 1
@@ -46,6 +38,8 @@ Public Enum E_CHECK
 End Enum
 
 Public Const D_LEN_FULLPATH_MAX As Long = 256
+
+Public Const D_MARK_INVALID As String = "―"
 
 '==============================================================================
 ' 内部定義
