@@ -6,8 +6,9 @@ Option Explicit
 ' 参照設定          |   Windows Script Host Object Model
 '------------------------------------------------------------------------------
 ' 参照モジュール    |   M_String
+'                   |   M_Shell
 '------------------------------------------------------------------------------
-' 共通バージョン    |   250501
+' 共通バージョン    |   250504
 '------------------------------------------------------------------------------
 
 '==============================================================================
@@ -68,31 +69,14 @@ End Enum
 Public Function F_Cmd_GetCommandResult( _
         ByRef aRtn As String, _
         ByVal aCmd As String) As Boolean
-    Dim wkRet As Boolean: wkRet = False
     Dim wkRtn As String
-    
-    Dim wkShell As New WshShell
-    Dim wkExec As Object
     
     '引数チェック
     If aCmd = "" Then
         Exit Function
     End If
     
-    On Error GoTo PROC_ERROR
-    'コマンド実行
-    Set wkExec = wkShell.Exec("%ComSpec% /c " & aCmd)
-    
-    wkRtn = wkExec.StdOut.ReadAll
-    On Error GoTo 0
-
-    If wkRtn <> "" Then
-        aRtn = wkRtn
-        wkRet = True
-    End If
-
-PROC_ERROR:
-    F_Cmd_GetCommandResult = wkRet
+    F_Cmd_GetCommandResult = M_Shell.F_Shell_GetResult(aRtn, "%ComSpec% /c " & aCmd)
 End Function
 
 '------------------------------------------------------------------------------
@@ -133,35 +117,13 @@ End Function
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Public Function F_Cmd_RunCommand( _
         ByVal aCmd As String, _
-        Optional ByVal aWindowStype As Long = 0, _
+        Optional ByVal aWindowStyle As Long = 0, _
         Optional ByVal aWaitOnReturn As Boolean = False) As Boolean
-    Dim wkRet As Boolean: wkRet = False
-    Dim wkRtn As String
-    
-    Dim wkShell As New WshShell
-    Dim wkCmdRet As Integer
-    
-    '引数チェック
     If aCmd = "" Then
         Exit Function
     End If
     
-    On Error GoTo PROC_ERROR
-    'コマンド実行
-    wkCmdRet = wkShell.Run(aCmd, WindowStyle:=aWindowStype, WaitOnReturn:=aWaitOnReturn)
-    If aWaitOnReturn = True Then
-        '正常終了している場合は正常を返却
-        If wkCmdRet = 0 Then
-            wkRet = True
-        End If
-    Else
-        '一旦正常とする
-        wkRet = True
-    End If
-    On Error GoTo 0
-    
-PROC_ERROR:
-    F_Cmd_RunCommand = wkRet
+    F_Cmd_RunCommand = M_Shell.F_Shell_Run("%ComSpec% /c " & aCmd, aWindowStyle:=aWindowStyle, aWaitOnReturn:=aWaitOnReturn)
 End Function
 
 '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

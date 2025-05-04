@@ -7,6 +7,7 @@ Option Explicit
 '                   |   Microsoft Office xx.x Object Library
 '------------------------------------------------------------------------------
 ' 参照モジュール    |   M_String
+'                   |   M_Shell
 '------------------------------------------------------------------------------
 ' 共通バージョン    |   250504
 '------------------------------------------------------------------------------
@@ -435,26 +436,4 @@ Public Function F_File_GetDialogSelect( _
     
     aRtn = wkRtnAry(LBound(wkRtnAry))
     F_File_GetDialogSelect = True
-End Function
-
-'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-' ファイルオープン
-'++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Public Function F_File_Open( _
-        ByVal aFilePath As String, _
-        ByVal aExePath As String, _
-        Optional ByVal aExeArg As String = "", _
-        Optional ByVal aAppWinStyle As VbAppWinStyle = vbNormalFocus) As Boolean
-    Dim wkPath As String
-    
-    If Dir(aExePath) = "" Or Dir(aFilePath) = "" Then
-        Exit Function
-    End If
-    
-    wkPath = aExePath
-    wkPath = M_String.F_String_ReturnAdd(wkPath, aExeArg, aDlmt:=" ")
-    wkPath = M_String.F_String_ReturnAdd(wkPath, aFilePath, aDlmt:=" ")
-    
-    Shell wkPath, aAppWinStyle
-    F_File_Open = True
 End Function
